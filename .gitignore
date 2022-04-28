@@ -1,0 +1,7 @@
+.ipynb_checkpoints/
+ASR_checkpoints/
+LibriSpeech/
+wandb/
+__pycache__/
+model.pt
+

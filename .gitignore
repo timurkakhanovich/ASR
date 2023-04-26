@@ -1,6 +1,7 @@
-LibriSpeech/
 .ipynb_checkpoints/
-dev-clean.tar.gz
-dev-other.tar.gz
-test-clean.tar.gz
-test-other.tar.gz
+ASR_checkpoints/
+LibriSpeech/
+wandb/
+__pycache__/
+model.pt
+

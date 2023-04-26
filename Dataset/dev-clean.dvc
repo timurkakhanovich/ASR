@@ -1,0 +1,5 @@
+outs:
+- md5: a9a90d991a873f59a995ea7f77e54a40.dir
+  size: 359369807
+  nfiles: 2800
+  path: dev-clean

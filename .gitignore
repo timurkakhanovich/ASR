@@ -4,4 +4,3 @@ LibriSpeech/
 wandb/
 __pycache__/
 model.pt
-

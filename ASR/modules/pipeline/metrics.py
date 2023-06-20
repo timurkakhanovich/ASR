@@ -1,16 +1,15 @@
-from typing import Dict, List
 from dataclasses import dataclass
+from typing import Dict, List
 
 import torch
 from datasets import load_metric
 
-from ASR.modules.pipeline.constants import BPEMB_EN
+from ASR.modules.model.model import QuartzLM
 from ASR.modules.pipeline.inference import (
-    greedy_decoding,
     beam_search_decoding,
+    greedy_decoding,
     translate_lines,
 )
-from ASR.modules.model.model import QuartzLM
 
 
 @dataclass
@@ -30,10 +29,10 @@ class Metrics:
         super().__init__()
         self.model = model
         self.wer_metric = load_metric('wer')
-        
+
         self.beam_size = beam_size
         self.max_len = max_len
-    
+
     def train_metrics(
         self,
         pred: torch.FloatTensor,
@@ -41,10 +40,12 @@ class Metrics:
     ) -> MetricsOut:
         pred_str = translate_lines(pred.argmax(dim=1))
         wer = {
-            'greedy': self.wer_metric.compute(predictions=pred_str, references=label_str)
+            'greedy': self.wer_metric.compute(
+                predictions=pred_str, references=label_str
+            )
         }
         return MetricsOut(pred_str, label_str, wer)
-        
+
     def val_metrics(
         self,
         sample: torch.FloatTensor,
@@ -52,7 +53,7 @@ class Metrics:
     ) -> MetricsOut:
         greedy_pred = greedy_decoding(self.model, sample, self.max_len)
         bs_pred = beam_search_decoding(self.model, sample, self.beam_size, self.max_len)
-        
+
         pred_str = {
             'greedy': translate_lines(greedy_pred),
             'beam_search': translate_lines(bs_pred),

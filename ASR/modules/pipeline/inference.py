@@ -1,13 +1,13 @@
-from typing import List, Tuple, Dict, Union
-from dataclasses import dataclass
 from collections import defaultdict
+from dataclasses import dataclass
+from typing import Dict, List, Tuple, Union
 
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from ASR.modules.pipeline.constants import BPEMB_EN, DEVICE, T
 from ASR.modules.model.model import QuartzLM
+from ASR.modules.pipeline.constants import BPEMB_EN, DEVICE, T
 
 
 def concat_raw_arrays(
@@ -18,17 +18,15 @@ def concat_raw_arrays(
     Parallel arrays concatenation:
     torch.tensor([1, 2])
     torch.tensor([5, 4, 3, 10])
-    
+
     Result:
     tensor([[ 1,  2,  5],
         [ 1,  2,  4],
         [ 1,  2,  3],
         [ 1,  2, 10]])
     '''
-    
-    return torch.stack([
-        torch.cat((old_seq, j)) for j in new_seq.unsqueeze(-1)
-    ])
+
+    return torch.stack([torch.cat((old_seq, j)) for j in new_seq.unsqueeze(-1)])
 
 
 def concat_seqs(
@@ -38,10 +36,8 @@ def concat_seqs(
     '''
     Parallel sequences concatenation.
     '''
-    
-    return torch.stack([
-        concat_raw_arrays(o, n) for o, n in zip(old_seq, new_seq)
-    ])
+
+    return torch.stack([concat_raw_arrays(o, n) for o, n in zip(old_seq, new_seq)])
 
 
 def get_topk_in_matrix(
@@ -50,12 +46,12 @@ def get_topk_in_matrix(
 ) -> Tuple[torch.LongTensor]:
     '''
     Search top k values in matrix
-    
+
     Returns: indices of top k values in matrix.
     '''
-    
+
     _, topk_ids = torch.topk(matrix.flatten(), k, dim=-1)
-    
+
     return torch.div(topk_ids, k, rounding_mode='floor'), topk_ids % k
 
 
@@ -67,20 +63,21 @@ def greedy_decoding(
 ) -> torch.LongTensor:
     training = model.training
     model.eval()
-    
+
     batch_size = sample.size(0)
-    predictions = [torch.full([batch_size], BPEMB_EN.BOS, 
-                          dtype=torch.int64, device=DEVICE)]
-    
+    predictions = [
+        torch.full([batch_size], BPEMB_EN.BOS, dtype=torch.int64, device=DEVICE)
+    ]
+
     # Get initial state
     hx, cx = model.encoder(sample)
     for _ in range(max_len):
         logits, (hx, cx) = model.decoder.decode_step(hx, cx, predictions[-1])
         predictions.append(logits.argmax(dim=-1))
-        
+
     if training:
         model.train()
-    
+
     return torch.stack(predictions, dim=1)
 
 
@@ -92,10 +89,10 @@ def start_beam_search(
     beam_size: int,
 ) -> Dict[str, Union[torch.LongTensor, torch.FloatTensor, Tuple[torch.FloatTensor]]]:
     '''
-    Encode sample (melspec), predict the first token of sentence 
+    Encode sample (melspec), predict the first token of sentence
     after BOS token and return the next hidden states
 
-    Returns: 
+    Returns:
     dict of:
     * the top k sequnces,
     * the top k of their probabilities,
@@ -104,7 +101,7 @@ def start_beam_search(
 
     result = {
         'seq': torch.full([beam_size], BPEMB_EN.BOS, dtype=torch.int64, device=DEVICE),
-        'log_probs': torch.zeros(beam_size, dtype=torch.float32, device=DEVICE)
+        'log_probs': torch.zeros(beam_size, dtype=torch.float32, device=DEVICE),
     }
     init_seq = torch.tensor([BPEMB_EN.BOS], dtype=torch.int64, device=DEVICE)
 
@@ -121,7 +118,9 @@ def start_beam_search(
 @torch.inference_mode()
 def beam_search_loop(
     model: QuartzLM,
-    result: Dict[str, Union[torch.LongTensor, torch.FloatTensor, Tuple[torch.FloatTensor]]],
+    result: Dict[
+        str, Union[torch.LongTensor, torch.FloatTensor, Tuple[torch.FloatTensor]]
+    ],
     beam_size: int,
     max_len: int,
 ) -> torch.LongTensor:
@@ -130,7 +129,9 @@ def beam_search_loop(
         temp_result = defaultdict(list)
 
         for i in range(beam_size):
-            curr_token = torch.tensor([result['seq'][i, -1]], dtype=torch.int64, device=DEVICE)
+            curr_token = torch.tensor(
+                [result['seq'][i, -1]], dtype=torch.int64, device=DEVICE
+            )
 
             pred, states = model.decoder.decode_step(*result['states'][i], curr_token)
 
@@ -142,13 +143,10 @@ def beam_search_loop(
 
         temp_result['log_probs'] = torch.stack(temp_result['log_probs'])
         temp_result['seq'] = concat_seqs(result['seq'], torch.stack(temp_result['seq']))
-        top_ids = get_topk_in_matrix(
-            temp_result['log_probs'], k=beam_size
-        )
+        top_ids = get_topk_in_matrix(temp_result['log_probs'], k=beam_size)
         result['log_probs'] = temp_result['log_probs'][top_ids]
         result['seq'] = temp_result['seq'][top_ids]
-        result['states'] = [temp_result['states'][idx]
-                            for idx in top_ids[0]]
+        result['states'] = [temp_result['states'][idx] for idx in top_ids[0]]
 
     high_p_idx = torch.argmax(result['log_probs'])
 
@@ -164,7 +162,7 @@ def beam_search_decoding(
 ) -> torch.LongTensor:
     training = model.training
     model.eval()
-    
+
     batch_size = sample.size(0)
 
     # Get initial state
@@ -176,10 +174,10 @@ def beam_search_decoding(
 
         result = start_beam_search(model, hx, cx, beam_size)
         predictions[batch_idx] = beam_search_loop(model, result, beam_size, max_len)
-    
+
     if training:
         model.train()
-    
+
     return predictions
 
 
@@ -188,8 +186,9 @@ def translate_lines(
 ) -> List[str]:
     result_str = []
     for i in range(input_lines.size(0)):
-        bpe_format_str = \
-            ''.join([BPEMB_EN.emb.index_to_key[j] for j in input_lines[i][1:]])
+        bpe_format_str = ''.join(
+            [BPEMB_EN.emb.index_to_key[j] for j in input_lines[i][1:]]
+        )
         substring_before_eos = bpe_format_str.split(BPEMB_EN.EOS_str)[0]
 
         result_str.append(' '.join(substring_before_eos.split('▁')).strip())
@@ -212,33 +211,31 @@ def validate_model(
 ) -> ValidateOut:
     training = model.training
     model.eval()
-    
+
     running_loss = 0.0
     running_score = defaultdict(float)
-    
+
     print('\n')
     for batch_idx, sample in enumerate(val_dataloader):
         if batch_idx % 10 == 0 or batch_idx == len(val_dataloader) - 1:
             print(f'==> Batch: {batch_idx}/{len(val_dataloader)}')
 
         sample = {k: v.to(DEVICE) for k, v in sample.items()}
-        
+
         sample['log_probs'] = model(sample['input_features'], sample['targets'])
-        
+
         metrics_info = metrics.val_metrics(sample['input_features'], sample['targets'])
         loss = criterion(sample['log_probs'], sample['targets'])
         del sample['input_features']
-        
+
         running_loss += loss.item()
         running_score['greedy_wer'] += metrics_info.wer['greedy']
         running_score['bs_wer'] += metrics_info.wer['beam_search']
 
     running_loss /= len(val_dataloader)
-    running_score = {
-        k: v / len(val_dataloader) for k, v in running_score.items()
-    }
-    
+    running_score = {k: v / len(val_dataloader) for k, v in running_score.items()}
+
     if training:
         model.train()
-    
+
     return ValidateOut(running_loss, running_score)

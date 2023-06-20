@@ -1,24 +1,23 @@
 from typing import TypeVar
 
-from bpemb import BPEmb
 import torch
+from bpemb import BPEmb
 
 from ASR.modules.data.data_processing import ASRProcessor
 
-
-# Tokenizer.  
+# Tokenizer.
 BPEMB_EN = BPEmb(lang='en', dim=300, vs=1000)
 PAD_IDX = BPEMB_EN.EOS
 
-# Data processor.  
+# Data processor.
 TRAIN_PROCESSOR = ASRProcessor(BPEMB_EN, split='train')
 TEST_PROCESSOR = ASRProcessor(BPEMB_EN, split='test')
 
-# Training.  
+# Training.
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 N_MELS = 64
 HID_SIZE = 300
 NUM_LAYERS = 2
 
-# Var type.  
+# Var type.
 T = TypeVar('T')

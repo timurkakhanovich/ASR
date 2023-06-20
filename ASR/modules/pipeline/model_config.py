@@ -1,7 +1,7 @@
-from pathlib import PosixPath
-from typing import Dict, Any
 import argparse
 import textwrap
+from pathlib import PosixPath
+from typing import Any, Dict
 
 import torch
 from torch.optim import AdamW
@@ -46,45 +46,52 @@ def load_from_checkpoint(
         'num_epochs': num_epochs,
         'device': DEVICE,
     }
-    
+
 
 def get_arguments(model: QuartzLM) -> Dict[str, Any]:
     parser = argparse.ArgumentParser(
         prog='PROG',
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=textwrap.dedent('''
+        description=textwrap.dedent(
+            '''
         Gets arguments from command line to initialize model.
-        STRICTLY REQUIRED: 
+        STRICTLY REQUIRED:
         * for chosen checkpoint: CHECKPOINT, NUM_EPOCHS;
         * if checkpoint is not chosen: LR, BATCH_SIZE, NUM_EPOCHS
-        ''')
+        '''
+        ),
     )
+
     parser.add_argument('--checkpoint', type=int, help='Loading from checkpoint')
+    parser.add_argument('--checkpoint-path', type=str, help='Checkpoint path')
     parser.add_argument('--batch_size', type=int, help='Batch size')
     parser.add_argument('--lr', type=float, help='Learning rate')
     parser.add_argument('--num_epochs', type=int, help='Num epochs for training')
 
     args = parser.parse_args()
 
+    model = model.to(DEVICE)
+
     if args.checkpoint:
-        return load_from_checkpoint(check_epoch=args.checkpoint, 
-                                    batch_size=args.batch_size,
-                                    num_epochs=args.num_epochs, 
-                                    device=DEVICE)
-    else:
-        model = model.to(DEVICE)
+        return load_from_checkpoint(
+            model,
+            check_epoch=args.checkpoint,
+            checkpoint_path=args.checkpoint_path,
+            batch_size=args.batch_size,
+            num_epochs=args.num_epochs,
+        )
 
-        optimizer = AdamW(model.parameters(), lr=args.lr)
-        scheduler = None
+    optimizer = AdamW(model.parameters(), lr=args.lr)
+    scheduler = None
 
-        return {
-            'model': model,
-            'optimizer': optimizer,
-            'scheduler': scheduler,
-            'history': {},
-            'batch_size': args.batch_size,
-            'start_epoch': -1,
-            'lr': args.lr,
-            'num_epochs': args.num_epochs,
-            'device': DEVICE,
-        }
+    return {
+        'model': model,
+        'optimizer': optimizer,
+        'scheduler': scheduler,
+        'history': {},
+        'batch_size': args.batch_size,
+        'start_epoch': -1,
+        'lr': args.lr,
+        'num_epochs': args.num_epochs,
+        'device': DEVICE,
+    }
